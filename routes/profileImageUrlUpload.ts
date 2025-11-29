@@ -28,9 +28,16 @@ export function profileImageUrlUpload () {
       try {
         const parsedUrl = new URL(url)
         // Only allow http(s)
-        if ((parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:')
-          // Hostname must match allowed list
-          && ALLOWED_HOSTNAMES.includes(parsedUrl.hostname)
+        // Hostname must match allowed list (case-insensitive, no subdomains, no ports), and no path traversal in pathname
+        const normalizedHostname = parsedUrl.hostname.toLowerCase()
+        const hasPortOrSubdomain = normalizedHostname !== ALLOWED_HOSTNAMES.find(host => normalizedHostname === host)
+        const hasPathTraversal = /(\.\.|%2e%2e|%252e%252e)/i.test(parsedUrl.pathname)
+        if (
+          (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:')
+          && ALLOWED_HOSTNAMES.includes(normalizedHostname)
+          && !hasPortOrSubdomain
+          && parsedUrl.port === ''
+          && !hasPathTraversal
         ) {
           safeToFetch = true
         }
