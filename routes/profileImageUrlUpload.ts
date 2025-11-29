@@ -17,10 +17,34 @@ export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
+      // SSRF mitigation: only allow images to be fetched from trusted hosts
+      const ALLOWED_HOSTNAMES = [
+        'images.unsplash.com',
+        'cdn.pixabay.com',
+        'user-images.githubusercontent.com'
+        // add other trusted hostnames as needed
+      ]
+      let safeToFetch = false
+      try {
+        const parsedUrl = new URL(url)
+        // Only allow http(s)
+        if ((parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:')
+          // Hostname must match allowed list
+          && ALLOWED_HOSTNAMES.includes(parsedUrl.hostname)
+        ) {
+          safeToFetch = true
+        }
+      } catch (e) {
+        // invalid URL format
+        safeToFetch = false
+      }
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         try {
+          if (!safeToFetch) {
+            throw new Error('Unapproved image URL: SSRF protection enforced')
+          }
           const response = await fetch(url)
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
